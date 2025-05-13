@@ -1,67 +1,194 @@
-[![Multi-Modality](agorabanner.png)](https://discord.com/servers/agora-999382051935506503)
+# Swarms SDK
 
-# Python Package Template
+A production-grade Python client for the Swarms API, providing a simple and intuitive interface for creating and managing AI swarms.
 
-[![Join our Discord](https://img.shields.io/badge/Discord-Join%20our%20server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/agora-999382051935506503) [![Subscribe on YouTube](https://img.shields.io/badge/YouTube-Subscribe-red?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/@kyegomez3242) [![Connect on LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/kye-g-38759a207/) [![Follow on X.com](https://img.shields.io/badge/X.com-Follow-1DA1F2?style=for-the-badge&logo=x&logoColor=white)](https://x.com/kyegomezb)
+## Features
 
-A easy, reliable, fluid template for python packages complete with docs, testing suites, readme's, github workflows, linting and much much more
-
+- 🚀 Async-first design with comprehensive error handling
+- 📝 Extensive logging with loguru
+- 🔄 Automatic retries with exponential backoff
+- 🔒 Secure API key management
+- 📊 Detailed telemetry and monitoring
+- 🎯 Type hints and validation
+- 📚 Comprehensive documentation
 
 ## Installation
 
-You can install the package using pip
-
 ```bash
-pip install -e .
+pip install swarms-sdk
 ```
 
-# Usage
+## Quick Start
+
 ```python
-print("hello world")
+import asyncio
+from swarms_sdk import SwarmsClient
 
+async def main():
+    # Initialize the client
+    client = SwarmsClient(api_key="your-api-key")
+
+    # Create a swarm
+    swarm = await client.create_swarm(
+        name="my-swarm",
+        task="Analyze this data",
+        agents=[
+            {
+                "agent_name": "analyzer",
+                "model_name": "gpt-4",
+                "role": "worker"
+            }
+        ]
+    )
+
+    # Run the swarm
+    result = await client.run_swarm(swarm["id"])
+    print(result)
+
+# Run the async function
+asyncio.run(main())
 ```
 
+## API Reference
 
+### SwarmsClient
 
-### Code Quality 🧹
+The main client class for interacting with the Swarms API.
 
-- `make style` to format the code
-- `make check_code_quality` to check code quality (PEP8 basically)
-- `black .`
-- `ruff . --fix`
+#### Initialization
 
-### Tests 🧪
-
-[`pytests`](https://docs.pytest.org/en/7.1.x/) is used to run our tests.
-
-### Publish on PyPi 🚀
-
-**Important**: Before publishing, edit `__version__` in [src/__init__](/src/__init__.py) to match the wanted new version.
-
-```
-poetry build
-poetry publish
+```python
+client = SwarmsClient(
+    api_key="your-api-key",  # Optional: Can also use SWARMS_API_KEY env var
+    base_url="https://api.swarms.world",  # Optional: Default API URL
+    timeout=60,  # Optional: Request timeout in seconds
+    max_retries=3  # Optional: Maximum retry attempts
+)
 ```
 
-### CI/CD 🤖
+#### Methods
 
-We use [GitHub actions](https://github.com/features/actions) to automatically run tests and check code quality when a new PR is done on `main`.
+##### create_swarm
 
-On any pull request, we will check the code quality and tests.
+Create a new swarm with specified configuration.
 
-When a new release is created, we will try to push the new code to PyPi. We use [`twine`](https://twine.readthedocs.io/en/stable/) to make our life easier. 
+```python
+swarm = await client.create_swarm(
+    name="my-swarm",
+    task="Analyze this data",
+    agents=[
+        {
+            "agent_name": "analyzer",
+            "model_name": "gpt-4",
+            "role": "worker"
+        }
+    ],
+    description="Optional description",
+    max_loops=1,
+    swarm_type="SequentialWorkflow",
+    service_tier="standard"
+)
+```
 
-The **correct steps** to create a new realease are the following:
-- edit `__version__` in [src/__init__](/src/__init__.py) to match the wanted new version.
-- create a new [`tag`](https://git-scm.com/docs/git-tag) with the release name, e.g. `git tag v0.0.1 && git push origin v0.0.1` or from the GitHub UI.
-- create a new release from GitHub UI
+##### run_swarm
 
-The CI will run when you create the new release.
+Run a swarm with the specified ID.
 
-# Docs
-We use MK docs. This repo comes with the zeta docs. All the docs configurations are already here along with the readthedocs configs.
+```python
+result = await client.run_swarm(swarm_id="swarm-123")
+```
 
+##### get_swarm_logs
 
+Get execution logs for a specific swarm.
 
-# License
-MIT
+```python
+logs = await client.get_swarm_logs(swarm_id="swarm-123")
+```
+
+##### get_available_models
+
+Get list of available models.
+
+```python
+models = await client.get_available_models()
+```
+
+##### get_swarm_types
+
+Get list of available swarm types.
+
+```python
+swarm_types = await client.get_swarm_types()
+```
+
+### Error Handling
+
+The SDK provides custom exceptions for different error scenarios:
+
+```python
+from swarms_sdk import (
+    SwarmsError,
+    AuthenticationError,
+    RateLimitError,
+    ValidationError,
+    APIError
+)
+
+try:
+    result = await client.run_swarm(swarm_id)
+except AuthenticationError as e:
+    print("Authentication failed:", e)
+except RateLimitError as e:
+    print("Rate limit exceeded:", e)
+except APIError as e:
+    print(f"API error (status {e.status_code}):", e)
+except SwarmsError as e:
+    print("Other error:", e)
+```
+
+### Logging
+
+The SDK uses loguru for comprehensive logging. Logs are written to both console and file:
+
+```python
+import loguru
+
+# Configure custom logging
+loguru.logger.add(
+    "custom.log",
+    rotation="100 MB",
+    retention="7 days",
+    level="DEBUG"
+)
+```
+
+## Best Practices
+
+1. **API Key Management**
+   - Use environment variables for API keys
+   - Never commit API keys to version control
+   - Rotate API keys regularly
+
+2. **Error Handling**
+   - Always wrap API calls in try-except blocks
+   - Handle specific exceptions appropriately
+   - Implement retry logic for transient failures
+
+3. **Resource Management**
+   - Use async context manager for proper session cleanup
+   - Close client sessions when done
+   - Monitor memory usage with large swarms
+
+4. **Performance**
+   - Use appropriate service tiers
+   - Implement caching where appropriate
+   - Monitor API rate limits
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details. 
