@@ -16,7 +16,7 @@ class SwarmsConfig:
     """Configuration class for Swarms API client."""
 
     # Default values
-    DEFAULT_BASE_URL = "https://api.swarms.world"
+    DEFAULT_BASE_URL = "https://swarms-api-285321057562.us-east1.run.app"
     ALTERNATE_BASE_URL = "https://swarms-api-285321057562.us-east1.run.app"
     DEFAULT_TIMEOUT = 60
     DEFAULT_MAX_RETRIES = 3

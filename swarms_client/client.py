@@ -38,6 +38,7 @@ from loguru import logger
 from pydantic import ValidationError
 
 from swarms_client.config import SwarmsConfig
+from swarms_client.models import AgentCompletion, AgentSpec, SwarmSpec
 from swarms_client.retry import RetryHandler
 
 # Configure loguru logger
@@ -132,6 +133,7 @@ class SwarmsClient:
             AuthenticationError: If no API key is provided or found in environment.
         """
         self.api_key = api_key or SwarmsConfig.get_api_key()
+
         if not self.api_key:
             raise AuthenticationError(
                 "No API key provided. Set SWARMS_API_KEY environment variable or pass api_key parameter."
@@ -140,6 +142,7 @@ class SwarmsClient:
         self.base_url = (base_url or SwarmsConfig.get_base_url()).rstrip("/")
         self.timeout = timeout or SwarmsConfig.get_timeout()
         self.max_retries = max_retries or SwarmsConfig.get_max_retries()
+        self.max_concurrent_requests = max_concurrent_requests
         self.session = None
         self.semaphore = asyncio.Semaphore(max_concurrent_requests)
 
@@ -256,41 +259,62 @@ class SwarmsClient:
         self,
         name: str,
         task: str,
-        agents: List[Dict[str, Any]],
+        agents: List[AgentSpec],
         description: Optional[str] = None,
         max_loops: int = 1,
         swarm_type: Optional[str] = None,
+        rearrange_flow: Optional[str] = None,
+        return_history: bool = True,
+        rules: Optional[str] = None,
+        tasks: Optional[List[str]] = None,
+        messages: Optional[List[Dict[str, Any]]] = None,
+        stream: bool = False,
         service_tier: str = "standard",
     ) -> Dict[str, Any]:
         """
-        Create a new swarm with specified configuration.
+        Create and run a swarm with specified configuration.
 
         Args:
             name (str): Name of the swarm
-            task (str): Task description for the swarm
-            agents (List[Dict[str, Any]]): List of agent configurations
-            description (Optional[str]): Optional description of the swarm
-            max_loops (int): Maximum number of execution loops
+            task (str): Main task for the swarm
+            agents (List[AgentSpec]): List of agent specifications
+            description (Optional[str]): Swarm description
+            max_loops (int): Maximum execution loops
             swarm_type (Optional[str]): Type of swarm architecture
-            service_tier (str): Service tier to use ("standard" or "flex")
+            rearrange_flow (Optional[str]): Flow rearrangement instructions
+            return_history (bool): Whether to return execution history
+            rules (Optional[str]): Swarm behavior rules
+            tasks (Optional[List[str]]): List of tasks
+            messages (Optional[List[Dict[str, Any]]]): List of messages
+            stream (bool): Whether to stream output
+            service_tier (str): Service tier for processing
 
         Returns:
-            Dict[str, Any]: Created swarm configuration
+            Dict[str, Any]: Swarm execution results
         """
         try:
-            swarm_data = {
-                "name": name,
-                "task": task,
-                "agents": agents,
-                "description": description,
-                "max_loops": max_loops,
-                "swarm_type": swarm_type,
-                "service_tier": service_tier,
-            }
+            # Create swarm spec using Pydantic model for validation
+            swarm_spec = SwarmSpec(
+                name=name,
+                description=description,
+                agents=agents,
+                max_loops=max_loops,
+                swarm_type=swarm_type,
+                rearrange_flow=rearrange_flow,
+                task=task,
+                return_history=return_history,
+                rules=rules,
+                tasks=tasks,
+                messages=messages,
+                stream=stream,
+                service_tier=service_tier,
+            )
 
             logger.info(f"Creating swarm: {name}")
             response = await self._make_request(
-                "POST", "/v1/swarm/completions", data=swarm_data
+                "POST",
+                "/v1/swarm/completions",
+                data=swarm_spec.model_dump(exclude_none=True),
             )
             logger.info(f"Successfully created swarm: {name}")
             return response
@@ -380,6 +404,12 @@ class SwarmsClient:
         model_name: str = "gpt-4",
         temperature: float = 0.7,
         max_tokens: int = 1000,
+        system_prompt: Optional[str] = None,
+        description: Optional[str] = None,
+        auto_generate_prompt: bool = False,
+        role: str = "worker",
+        max_loops: int = 1,
+        tools_dictionary: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Run a single agent with specified configuration.
@@ -390,22 +420,39 @@ class SwarmsClient:
             model_name (str): Model to use
             temperature (float): Temperature for generation
             max_tokens (int): Maximum tokens to generate
+            system_prompt (Optional[str]): System prompt for the agent
+            description (Optional[str]): Description of the agent
+            auto_generate_prompt (bool): Whether to auto-generate prompts
+            role (str): Role of the agent
+            max_loops (int): Maximum number of loops
+            tools_dictionary (Optional[List[Dict[str, Any]]]): Tools for the agent
 
         Returns:
             Dict[str, Any]: Agent execution results
         """
         try:
-            agent_data = {
-                "agent_name": agent_name,
-                "task": task,
-                "model_name": model_name,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-            }
+            # Create agent spec using Pydantic model for validation
+            agent_spec = AgentSpec(
+                agent_name=agent_name,
+                description=description,
+                system_prompt=system_prompt,
+                model_name=model_name,
+                auto_generate_prompt=auto_generate_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                role=role,
+                max_loops=max_loops,
+                tools_dictionary=tools_dictionary,
+            )
+
+            # Create completion request
+            completion = AgentCompletion(agent_config=agent_spec, task=task)
 
             logger.info(f"Running agent: {agent_name}")
             response = await self._make_request(
-                "POST", "/v1/agent/completions", data=agent_data
+                "POST",
+                "/v1/agent/completions",
+                data=completion.model_dump(exclude_none=True),
             )
             logger.info(f"Successfully ran agent: {agent_name}")
             return response
