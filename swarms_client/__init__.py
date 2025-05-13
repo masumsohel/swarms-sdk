@@ -1,7 +1,7 @@
 """
-Swarms SDK - A production-grade Python client for the Swarms API.
+Swarms API Client Package
 
-This package provides a simple and intuitive interface for creating and managing AI swarms.
+This package provides a production-grade client for interacting with the Swarms API.
 """
 
 from .client import (
@@ -12,14 +12,16 @@ from .client import (
     ValidationError,
     APIError,
 )
-
-__version__ = "0.1.0"
+from .config import SwarmsConfig
 
 __all__ = [
     "SwarmsClient",
+    "SwarmsConfig",
     "SwarmsError",
     "AuthenticationError",
     "RateLimitError",
     "ValidationError",
     "APIError",
 ]
+
+__version__ = "0.1.0"

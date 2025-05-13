@@ -6,7 +6,7 @@ It includes comprehensive error handling, logging, and type hints for better dev
 
 Example:
     ```python
-    from swarms_sdk import SwarmsClient
+    from swarms_client import SwarmsClient
 
     # Initialize the client
     client = SwarmsClient(api_key="your-api-key")
@@ -30,18 +30,15 @@ Example:
 """
 
 import asyncio
-import json
-import logging
-import os
-import time
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Set
 from urllib.parse import urljoin
 
 import aiohttp
-import requests
 from loguru import logger
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
+
+from swarms_client.config import SwarmsConfig
+from swarms_client.retry import RetryHandler
 
 # Configure loguru logger
 logger.remove()  # Remove default handler
@@ -54,29 +51,40 @@ logger.add(
 )
 logger.add(lambda msg: print(msg), level="INFO", format="{message}")
 
+
 # Custom exceptions
 class SwarmsError(Exception):
     """Base exception for all Swarms API errors."""
+
     pass
+
 
 class AuthenticationError(SwarmsError):
     """Raised when authentication fails."""
+
     pass
+
 
 class RateLimitError(SwarmsError):
     """Raised when rate limit is exceeded."""
+
     pass
+
 
 class ValidationError(SwarmsError):
     """Raised when input validation fails."""
+
     pass
+
 
 class APIError(SwarmsError):
     """Raised when the API returns an error."""
+
     def __init__(self, message: str, status_code: int, response: Dict[str, Any]):
         self.status_code = status_code
         self.response = response
         super().__init__(f"{message} (Status: {status_code})")
+
 
 class SwarmsClient:
     """
@@ -96,10 +104,14 @@ class SwarmsClient:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        base_url: str = "https://api.swarms.world",
-        timeout: int = 60,
-        max_retries: int = 3,
+        base_url: Optional[str] = None,
+        timeout: Optional[int] = None,
+        max_retries: Optional[int] = None,
         max_concurrent_requests: int = 10,
+        retry_on_status: Optional[Set[int]] = None,
+        retry_delay: Optional[int] = None,
+        max_retry_delay: Optional[int] = None,
+        jitter: bool = True,
     ):
         """
         Initialize the Swarms API client.
@@ -107,25 +119,38 @@ class SwarmsClient:
         Args:
             api_key (Optional[str]): API key for authentication. If not provided,
                 will look for SWARMS_API_KEY environment variable.
-            base_url (str): Base URL for the API. Defaults to production URL.
-            timeout (int): Request timeout in seconds. Defaults to 60.
-            max_retries (int): Maximum number of retries for failed requests. Defaults to 3.
-            max_concurrent_requests (int): Maximum number of concurrent requests. Defaults to 10.
+            base_url (Optional[str]): Base URL for the API. Defaults to value from config.
+            timeout (Optional[int]): Request timeout in seconds.
+            max_retries (Optional[int]): Maximum number of retries for failed requests.
+            max_concurrent_requests (int): Maximum number of concurrent requests.
+            retry_on_status (Optional[Set[int]]): HTTP status codes to retry on.
+            retry_delay (Optional[int]): Initial delay between retries in seconds.
+            max_retry_delay (Optional[int]): Maximum delay between retries in seconds.
+            jitter (bool): Whether to add random jitter to retry delays.
 
         Raises:
             AuthenticationError: If no API key is provided or found in environment.
         """
-        self.api_key = api_key or os.getenv("SWARMS_API_KEY")
+        self.api_key = api_key or SwarmsConfig.get_api_key()
         if not self.api_key:
             raise AuthenticationError(
                 "No API key provided. Set SWARMS_API_KEY environment variable or pass api_key parameter."
             )
 
-        self.base_url = base_url.rstrip("/")
-        self.timeout = timeout
-        self.max_retries = max_retries
+        self.base_url = (base_url or SwarmsConfig.get_base_url()).rstrip("/")
+        self.timeout = timeout or SwarmsConfig.get_timeout()
+        self.max_retries = max_retries or SwarmsConfig.get_max_retries()
         self.session = None
         self.semaphore = asyncio.Semaphore(max_concurrent_requests)
+
+        # Initialize retry handler
+        self.retry_handler = RetryHandler(
+            max_retries=self.max_retries,
+            retry_delay=retry_delay or SwarmsConfig.get_retry_delay(),
+            max_retry_delay=max_retry_delay or SwarmsConfig.get_max_retry_delay(),
+            retry_on_status=retry_on_status,
+            jitter=jitter,
+        )
 
         logger.info(f"Initialized SwarmsClient with base URL: {self.base_url}")
 
@@ -160,7 +185,6 @@ class SwarmsClient:
         endpoint: str,
         data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
-        retry_count: int = 0,
     ) -> Dict[str, Any]:
         """
         Make an HTTP request to the API with retry logic and error handling.
@@ -170,7 +194,6 @@ class SwarmsClient:
             endpoint (str): API endpoint
             data (Optional[Dict[str, Any]]): Request body data
             params (Optional[Dict[str, Any]]): Query parameters
-            retry_count (int): Current retry attempt
 
         Returns:
             Dict[str, Any]: API response data
@@ -182,9 +205,9 @@ class SwarmsClient:
             SwarmsError: For other errors
         """
         url = urljoin(self.base_url, endpoint)
-        
-        async with self.semaphore:  # Limit concurrent requests
-            try:
+
+        async def _do_request():
+            async with self.semaphore:  # Limit concurrent requests
                 async with self.session.request(
                     method=method,
                     url=url,
@@ -199,13 +222,6 @@ class SwarmsClient:
                     elif response.status == 401:
                         raise AuthenticationError("Invalid API key")
                     elif response.status == 429:
-                        if retry_count < self.max_retries:
-                            retry_after = int(response.headers.get("Retry-After", 5))
-                            logger.warning(f"Rate limit exceeded. Retrying after {retry_after}s")
-                            await asyncio.sleep(retry_after)
-                            return await self._make_request(
-                                method, endpoint, data, params, retry_count + 1
-                            )
                         raise RateLimitError("Rate limit exceeded")
                     else:
                         raise APIError(
@@ -214,15 +230,11 @@ class SwarmsClient:
                             response_data,
                         )
 
-            except aiohttp.ClientError as e:
-                logger.error(f"Network error: {str(e)}")
-                if retry_count < self.max_retries:
-                    logger.warning(f"Retrying request (attempt {retry_count + 1})")
-                    await asyncio.sleep(2 ** retry_count)  # Exponential backoff
-                    return await self._make_request(
-                        method, endpoint, data, params, retry_count + 1
-                    )
-                raise SwarmsError(f"Network error after {self.max_retries} retries: {str(e)}")
+        try:
+            return await self.retry_handler.execute_with_retry(_do_request)
+        except aiohttp.ClientError as e:
+            logger.error(f"Network error: {str(e)}")
+            raise SwarmsError(f"Network error: {str(e)}")
 
     async def get_health(self) -> Dict[str, Any]:
         """
@@ -277,7 +289,9 @@ class SwarmsClient:
             }
 
             logger.info(f"Creating swarm: {name}")
-            response = await self._make_request("POST", "/v1/swarm/completions", data=swarm_data)
+            response = await self._make_request(
+                "POST", "/v1/swarm/completions", data=swarm_data
+            )
             logger.info(f"Successfully created swarm: {name}")
             return response
 
@@ -390,7 +404,9 @@ class SwarmsClient:
             }
 
             logger.info(f"Running agent: {agent_name}")
-            response = await self._make_request("POST", "/v1/agent/completions", data=agent_data)
+            response = await self._make_request(
+                "POST", "/v1/agent/completions", data=agent_data
+            )
             logger.info(f"Successfully ran agent: {agent_name}")
             return response
 
@@ -413,7 +429,9 @@ class SwarmsClient:
         """
         try:
             logger.info(f"Running batch of {len(agents)} agents")
-            response = await self._make_request("POST", "/v1/agent/batch/completions", data={"agents": agents})
+            response = await self._make_request(
+                "POST", "/v1/agent/batch/completions", data={"agents": agents}
+            )
             logger.info(f"Successfully ran batch of {len(agents)} agents")
             return response
 
@@ -436,7 +454,9 @@ class SwarmsClient:
         """
         try:
             logger.info(f"Running batch of {len(swarms)} swarms")
-            response = await self._make_request("POST", "/v1/swarm/batch/completions", data={"swarms": swarms})
+            response = await self._make_request(
+                "POST", "/v1/swarm/batch/completions", data={"swarms": swarms}
+            )
             logger.info(f"Successfully ran batch of {len(swarms)} swarms")
             return response
 
@@ -465,4 +485,4 @@ class SwarmsClient:
         """Close the client session."""
         if self.session:
             asyncio.create_task(self.session.close())
-            logger.info("Closed client session") 
+            logger.info("Closed client session")

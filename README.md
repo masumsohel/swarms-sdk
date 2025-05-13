@@ -15,14 +15,14 @@ A production-grade Python client for the Swarms API, providing a simple and intu
 ## Installation
 
 ```bash
-pip install swarms-sdk
+pip install swarms-client
 ```
 
 ## Quick Start
 
 ```python
 import asyncio
-from swarms_sdk import SwarmsClient
+from swarms_client import SwarmsClient
 
 async def main():
     # Initialize the client
@@ -127,7 +127,7 @@ swarm_types = await client.get_swarm_types()
 The SDK provides custom exceptions for different error scenarios:
 
 ```python
-from swarms_sdk import (
+from swarms_client import (
     SwarmsError,
     AuthenticationError,
     RateLimitError,
