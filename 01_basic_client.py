@@ -20,7 +20,9 @@ async def main():
         # Check API health
         try:
             health_status = await client.get_health()
+            models_available = await client.get_available_models()
             print("API Health Status:", health_status)
+            print("Models Available:", models_available)
         except Exception as e:
             print(f"Error checking health: {e}")
 

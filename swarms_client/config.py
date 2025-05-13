@@ -15,14 +15,19 @@ load_dotenv()
 class SwarmsConfig:
     """Configuration class for Swarms API client."""
 
-    # Default values
+    # Default values - optimized for performance
     DEFAULT_BASE_URL = "https://swarms-api-285321057562.us-east1.run.app"
     ALTERNATE_BASE_URL = "https://swarms-api-285321057562.us-east1.run.app"
-    DEFAULT_TIMEOUT = 60
-    DEFAULT_MAX_RETRIES = 3
-    DEFAULT_RETRY_DELAY = 1
-    DEFAULT_MAX_RETRY_DELAY = 30
-    DEFAULT_RETRY_ON_STATUS = [429, 500, 502, 503, 504]
+    DEFAULT_TIMEOUT = 120  # Increased timeout for reliability
+    DEFAULT_MAX_RETRIES = 5  # Increased retries
+    DEFAULT_RETRY_DELAY = 0.5  # Reduced initial delay
+    DEFAULT_MAX_RETRY_DELAY = 10  # Reduced max delay
+    DEFAULT_RETRY_ON_STATUS = [408, 429, 500, 502, 503, 504]  # Added 408 timeout
+    DEFAULT_KEEPALIVE_TIMEOUT = 30  # Keep connections alive
+    DEFAULT_MAX_CONCURRENT_REQUESTS = 25  # Increased concurrency
+    DEFAULT_DNS_CACHE_TTL = 300  # 5 minutes DNS cache
+    DEFAULT_TCP_NODELAY = True  # Disable Nagle's algorithm
+    DEFAULT_RESPONSE_CACHE_TTL = 60  # 1 minute response cache
 
     @staticmethod
     def get_api_key() -> Optional[str]:
@@ -67,14 +72,14 @@ class SwarmsConfig:
         )
 
     @staticmethod
-    def get_retry_delay() -> int:
+    def get_retry_delay() -> float:
         """
         Get initial retry delay from environment variables or use default.
 
         Returns:
-            int: Retry delay in seconds
+            float: Retry delay in seconds
         """
-        return int(
+        return float(
             os.getenv("SWARMS_API_RETRY_DELAY", SwarmsConfig.DEFAULT_RETRY_DELAY)
         )
 
@@ -89,5 +94,47 @@ class SwarmsConfig:
         return int(
             os.getenv(
                 "SWARMS_API_MAX_RETRY_DELAY", SwarmsConfig.DEFAULT_MAX_RETRY_DELAY
+            )
+        )
+
+    @staticmethod
+    def get_keepalive_timeout() -> int:
+        """Get keepalive timeout from environment variables or use default."""
+        return int(
+            os.getenv(
+                "SWARMS_API_KEEPALIVE_TIMEOUT", SwarmsConfig.DEFAULT_KEEPALIVE_TIMEOUT
+            )
+        )
+
+    @staticmethod
+    def get_max_concurrent_requests() -> int:
+        """Get max concurrent requests from environment variables or use default."""
+        return int(
+            os.getenv(
+                "SWARMS_API_MAX_CONCURRENT_REQUESTS",
+                SwarmsConfig.DEFAULT_MAX_CONCURRENT_REQUESTS,
+            )
+        )
+
+    @staticmethod
+    def get_dns_cache_ttl() -> int:
+        """Get DNS cache TTL from environment variables or use default."""
+        return int(
+            os.getenv("SWARMS_API_DNS_CACHE_TTL", SwarmsConfig.DEFAULT_DNS_CACHE_TTL)
+        )
+
+    @staticmethod
+    def get_tcp_nodelay() -> bool:
+        """Get TCP_NODELAY setting from environment variables or use default."""
+        return bool(
+            os.getenv("SWARMS_API_TCP_NODELAY", SwarmsConfig.DEFAULT_TCP_NODELAY)
+        )
+
+    @staticmethod
+    def get_response_cache_ttl() -> int:
+        """Get response cache TTL from environment variables or use default."""
+        return int(
+            os.getenv(
+                "SWARMS_API_RESPONSE_CACHE_TTL", SwarmsConfig.DEFAULT_RESPONSE_CACHE_TTL
             )
         )
